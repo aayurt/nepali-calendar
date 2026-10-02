@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nepali Calendar — Editorial Clean</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+    .nepali-font { font-family: 'Noto Sans Devanagari', 'Inter', sans-serif; }
+    .calendar-day { transition: all 0.15s ease; }
+    .calendar-day:hover { background: #e0f2fe; }
+    .calendar-day.today { background: #0ea5e9; color: white; }
+    .calendar-day.other-month { opacity: 0.4; }
+    .calendar-day.has-festival::after { content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; }
+    .calendar-day.has-holiday::after { content: ''; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); width: 6px; height: 6px; border-radius: 50%; background: #ef4444; }
+    .panel-enter { animation: slideIn 0.2s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-3">
+            <span class="text-4xl">📅</span>
+            Nepali Calendar
+          </h1>
+          <p class="text-slate-500 mt-1">Bikram Sambat • विक्रम संवत २०८१</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <select id="timezoneSelect" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent">
+            <option value="Asia/Kathmandu">🇳🇵 Kathmandu (UTC+5:45)</option>
+            <option value="UTC">🌍 UTC</option>
+            <option value="America/New_York">🇺🇸 New York (UTC-5)</option>
+            <option value="Europe/London">🇬🇧 London (UTC+0)</option>
+            <option value="Asia/Dubai">🇦🇪 Dubai (UTC+4)</option>
+          </select>
+          <button id="todayBtn" class="px-4 py-2 bg-sky-600 text-white rounded-lg font-medium hover:bg-sky-700 transition">Today</button>
+        </div>
+      </div>
+      
+      <!-- Dual Date Display -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-6 bg-white rounded-2xl shadow-sm border border-slate-100 panel-enter">
+        <div class="p-4 bg-slate-50 rounded-xl">
+          <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Gregorian (AD)</p>
+          <p id="gregorianDate" class="text-3xl font-bold text-slate-900">Monday, January 15, 2024</p>
+          <p id="gregorianNepali" class="text-sm text-slate-500 mt-1 nepali-font">सोमबार, २०२४ जनवरी १५</p>
+        </div>
+        <div class="p-4 bg-amber-50 rounded-xl border border-amber-100">
+          <p class="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Bikram Sambat (BS)</p>
+          <p id="bikramDate" class="text-3xl font-bold text-amber-900 nepali-font">सोमबार, २०८० पुष १</p>
+          <p id="bikramEnglish" class="text-sm text-amber-700 mt-1">Monday, Poush 1, 2080</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left: Calendar -->
+      <section class="lg:col-span-2 space-y-6">
+        <!-- Month Navigation -->
+        <div class="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-100 p-4 panel-enter">
+          <button id="prevMonth" class="p-2 rounded-lg hover:bg-slate-100 transition" aria-label="Previous month">‹</button>
+          <div class="text-center">
+            <h2 id="monthTitle" class="text-xl font-semibold text-slate-900">Poush 2080</h2>
+            <p id="monthTitleNp" class="text-sm text-slate-500 nepali-font">पुष २०८०</p>
+          </div>
+          <button id="nextMonth" class="p-2 rounded-lg hover:bg-slate-100 transition" aria-label="Next month">›</button>
+        </div>
+
+        <!-- Calendar Grid -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden panel-enter">
+          <!-- Week Headers -->
+          <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Sun</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Mon</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Tue</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Wed</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Thu</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Fri</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider nepali-font">आइत</div>
+          </div>
+          
+          <!-- Days Grid -->
+          <div id="calendarGrid" class="grid grid-cols-7 min-h-[420px]">
+            <!-- Days rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Events Panel -->
+        <div id="eventsPanel" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 panel-enter hidden">
+          <div class="flex items-center justify-between mb-4">
+            <h3 id="eventsDate" class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              <span class="text-xl">📍</span>
+              Events for <span class="nepali-font"></span>
+            </h3>
+            <button id="closeEvents" class="p-2 rounded-lg hover:bg-slate-100 transition">×</button>
+          </div>
+          <div id="eventsList" class="space-y-3 max-h-64 overflow-y-auto scrollbar-thin">
+            <!-- Events rendered by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Right: Sidebar -->
+      <aside class="space-y-6">
+        <!-- Date Converter -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 panel-enter">
+          <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="text-xl">🔄</span>
+            Date Converter
+          </h3>
+          
+          <div class="space-y-4">
+            <!-- AD to BS -->
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Gregorian → Bikram Sambat</label>
+              <div class="grid grid-cols-3 gap-2 mb-2">
+                <select id="adYear" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+                <select id="adMonth" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+                <select id="adDay" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+              </div>
+              <button id="convertAdToBs" class="w-full px-4 py-2 bg-sky-600 text-white rounded-lg font-medium hover:bg-sky-700 transition">Convert to BS</button>
+              <div id="bsResult" class="mt-3 p-3 bg-slate-50 rounded-lg hidden">
+                <p class="text-sm text-slate-500">Bikram Sambat</p>
+                <p id="bsResultText" class="text-lg font-bold text-slate-900 nepali-font"></p>
+                <p id="bsResultEnglish" class="text-sm text-slate-500"></p>
+              </div>
+            </div>
+
+            <hr class="border-slate-100" />
+
+            <!-- BS to AD -->
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">Bikram Sambat → Gregorian</label>
+              <div class="grid grid-cols-3 gap-2 mb-2">
+                <select id="bsYear" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+                <select id="bsMonth" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+                <select id="bsDay" class="px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:ring-2 focus:ring-sky-500"></select>
+              </div>
+              <button id="convertBsToAd" class="w-full px-4 py-2 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition">Convert to AD</button>
+              <div id="adResult" class="mt-3 p-3 bg-slate-50 rounded-lg hidden">
+                <p class="text-sm text-slate-500">Gregorian</p>
+                <p id="adResultText" class="text-lg font-bold text-slate-900"></p>
+                <p id="adResultNepali" class="text-sm text-slate-500 nepali-font"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Festivals -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 panel-enter">
+          <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="text-xl">🎉</span>
+            Upcoming Festivals
+          </h3>
+          <div id="upcomingFestivals" class="space-y-3 max-h-64 overflow-y-auto scrollbar-thin">
+            <!-- Festivals rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 panel-enter">
+          <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="text-xl">⚡</span>
+            Quick Actions
+          </h3>
+          <div class="space-y-2">
+            <button class="w-full text-left p-3 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-sky-200 transition flex items-center gap-3">
+              <span class="text-xl">📱</span>
+              <span class="font-medium text-slate-700">Add to Phone Calendar</span>
+            </button>
+            <button class="w-full text-left p-3 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-sky-200 transition flex items-center gap-3">
+              <span class="text-xl">📤</span>
+              <span class="font-medium text-slate-700">Export Events (ICS)</span>
+            </button>
+            <button class="w-full text-left p-3 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-sky-200 transition flex items-center gap-3">
+              <span class="text-xl">🖨️</span>
+              <span class="font-medium text-slate-700">Print Monthly View</span>
+            </button>
+            <button class="w-full text-left p-3 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-sky-200 transition flex items-center gap-3">
+              <span class="text-xl">🔗</span>
+              <span class="font-medium text-slate-700">Share Date Link</span>
+            </button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // ===== CALENDAR DATA =====
+    const NEPALI_MONTHS = [
+      { en: 'Baishakh', np: 'बैशाख', days: 31 },
+      { en: 'Jestha', np: 'जेठ', days: 31 },
+      { en: 'Ashadh', np: 'असार', days: 32 }, // leap year
+      { en: 'Shrawan', np: 'श्रावण', days: 31 },
+      { en: 'Bhadra', np: 'भदौ', days: 31 },
+      { en: 'Ashwin', np: 'आश्विन', days: 30 },
+      { en: 'Kartik', np: 'कार्तिक', days: 30 },
+      { en: 'Mangsir', np: 'मंसिर', days: 30 },
+      { en: 'Poush', np: 'पुष', days: 30 },
+      { en: 'Magh', np: 'माघ', days: 30 },
+      { en: 'Falgun', np: 'फाल्गुन', days: 30 },
+      { en: 'Chaitra', np: 'चैत्र', days: 30 }
+    ];
+
+    const WEEK_DAYS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const WEEK_DAYS_NP = ['आइत', 'सोम', 'मङ्गल', 'बुध', 'बिहि', 'शुक्र', 'शनि'];
+
+    // Festival data (simplified for demo)
+    const FESTIVALS = {
+      '2080-9-1': [{ name: 'Nepali New Year', np: 'नववर्ष', type: 'holiday' }],
+      '2080-9-15': [{ name: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', type: 'festival' }],
+      '2080-10-1': [{ name: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', type: 'festival' }],
+      '2080-6-1': [{ name: 'Dashain Begins', np: 'दशैं सुरु', type: 'holiday' }],
+      '2080-6-10': [{ name: 'Dashain Tika', np: 'दशैं टीका', type: 'holiday' }],
+      '2080-7-1': [{ name: 'Tihar Begins', np: 'तिहार सुरु', type: 'holiday' }],
+      '2080-7-5': [{ name: 'Bhai Tika', np: 'भाई टीका', type: 'holiday' }],
+      '2080-11-15': [{ name: 'Holi', np: 'होली', type: 'holiday' }],
+      '2080-1-15': [{ name: 'Buddha Jayanti', np: 'बुद्ध जयन्ती', type: 'holiday' }],
+      '2080-4-15': [{ name: 'Janai Purnima', np: 'जनेइ पूर्णिमा', type: 'festival' }],
+      '2080-5-3': [{ name: 'Teej', np: 'तीज', type: 'holiday' }],
+      '2081-1-1': [{ name: 'Nepali New Year', np: 'नववर्ष', type: 'holiday' }],
+      '2024-1-15': [{ name: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', type: 'festival' }],
+      '2024-1-26': [{ name: 'Republic Day (India)', np: 'गणतन्त्र दिवस', type: 'observance' }],
+      '2024-3-8': [{ name: "Women's Day", np: 'महिला दिवस', type: 'observance' }],
+    };
+
+    // Approximate conversion (for demo - real impl uses @8848/nepali-calendar)
+    const BS_OFFSET = 56; // years roughly
+    const REF_BS_START = { year: 2080, month: 9, day: 1 }; // Poush 1, 2080 = Jan 15, 2024
+
+    // ===== STATE =====
+    let currentBsYear = 2080;
+    let currentBsMonth = 9; // Poush
+    let selectedDate = null;
+
+    // ===== DOM ELEMENTS =====
+    const calendarGrid = document.getElementById('calendarGrid');
+    const monthTitle = document.getElementById('monthTitle');
+    const monthTitleNp = document.getElementById('monthTitleNp');
+    const prevMonthBtn = document.getElementById('prevMonth');
+    const nextMonthBtn = document.getElementById('nextMonth');
+    const eventsPanel = document.getElementById('eventsPanel');
+    const eventsDate = document.getElementById('eventsDate');
+    const eventsList = document.getElementById('eventsList');
+    const closeEventsBtn = document.getElementById('closeEvents');
+    const gregorianDateEl = document.getElementById('gregorianDate');
+    const gregorianNepaliEl = document.getElementById('gregorianNepali');
+    const bikramDateEl = document.getElementById('bikramDate');
+    const bikramEnglishEl = document.getElementById('bikramEnglish');
+    const upcomingFestivalsEl = document.getElementById('upcomingFestivals');
+    const todayBtn = document.getElementById('todayBtn');
+
+    // Converter elements
+    const adYear = document.getElementById('adYear');
+    const adMonth = document.getElementById('adMonth');
+    const adDay = document.getElementById('adDay');
+    const bsYear = document.getElementById('bsYear');
+    const bsMonth = document.getElementById('bsMonth');
+    const bsDay = document.getElementById('bsDay');
+    const convertAdToBs = document.getElementById('convertAdToBs');
+    const convertBsToAd = document.getElementById('convertBsToAd');
+    const bsResult = document.getElementById('bsResult');
+    const bsResultText = document.getElementById('bsResultText');
+    const bsResultEnglish = document.getElementById('bsResultEnglish');
+    const adResult = document.getElementById('adResult');
+    const adResultText = document.getElementById('adResultText');
+    const adResultNepali = document.getElementById('adResultNepali');
+
+    // ===== UTILITIES =====
+    function toNepaliDigits(num) {
+      return String(num).replace(/[0-9]/g, d => '०१२३४५६७८९'[d]);
+    }
+
+    function getDaysInBsMonth(year, month) {
+      const m = NEPALI_MONTHS[month - 1];
+      if (month === 3 && isBsLeapYear(year)) return 32;
+      return m.days;
+    }
+
+    function isBsLeapYear(year) {
+      // Simplified: Ashadh has 32 days every 3 years roughly
+      return [2078, 2081, 2084, 2087, 2090, 2093, 2096, 2099].includes(year);
+    }
+
+    function getEventsForDate(bsYear, bsMonth, bsDay) {
+      const key = `${bsYear}-${bsMonth}-${bsDay}`;
+      return FESTIVALS[key] || [];
+    }
+
+    function getAdEventsForDate(adYear, adMonth, adDay) {
+      const key = `${adYear}-${adMonth}-${adDay}`;
+      return FESTIVALS[key] || [];
+    }
+
+    function approxBsToAd(bsYear, bsMonth, bsDay) {
+      // Very rough approximation for demo
+      const adYear = bsYear - 56;
+      const adMonth = (bsMonth + 8) % 12 || 12;
+      return { year: adYear + (bsMonth > 4 ? 1 : 0), month: adMonth, day: bsDay };
+    }
+
+    function approxAdToBs(adYear, adMonth, adDay) {
+      const bsYear = adYear + 56;
+      const bsMonth = (adMonth + 3) % 12 || 12;
+      return { year: bsYear + (adMonth > 8 ? 1 : 0), month: bsMonth, day: adDay };
+    }
+
+    // ===== RENDER FUNCTIONS =====
+    function renderCalendar() {
+      const monthInfo = NEPALI_MONTHS[currentBsMonth - 1];
+      const daysInMonth = getDaysInBsMonth(currentBsYear, currentBsMonth);
+      
+      monthTitle.textContent = `${monthInfo.en} ${currentBsYear}`;
+      monthTitleNp.textContent = `${monthInfo.np} ${toNepaliDigits(currentBsYear)}`;
+
+      // Calculate first day of month (approximate)
+      const firstDayAd = approxBsToAd(currentBsYear, currentBsMonth, 1);
+      const firstDayJs = new Date(firstDayAd.year, firstDayAd.month - 1, firstDayAd.day);
+      const firstWeekDay = firstDayJs.getDay();
+
+      calendarGrid.innerHTML = '';
+
+      // Previous month trailing days
+      const prevMonth = currentBsMonth === 1 ? 12 : currentBsMonth - 1;
+      const prevYear = currentBsMonth === 1 ? currentBsYear - 1 : currentBsYear;
+      const prevDaysInMonth = getDaysInBsMonth(prevYear, prevMonth);
+
+      for (let i = firstWeekDay - 1; i >= 0; i--) {
+        const day = prevDaysInMonth - i;
+        const dayEl = createDayElement(day, false, prevYear, prevMonth);
+        dayEl.classList.add('other-month');
+        calendarGrid.appendChild(dayEl);
+      }
+
+      // Current month days
+      const today = new Date();
+      const todayAd = { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+      const todayBs = approxAdToBs(todayAd.year, todayAd.month, todayAd.day);
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const isToday = todayBs.year === currentBsYear && todayBs.month === currentBsMonth && todayBs.day === day;
+        const dayEl = createDayElement(day, true, currentBsYear, currentBsMonth, isToday);
+        calendarGrid.appendChild(dayEl);
+      }
+
+      // Next month leading days
+      const totalCells = firstWeekDay + daysInMonth;
+      const remainingCells = (Math.ceil(totalCells / 7) * 7) - totalCells;
+      for (let day = 1; day <= remainingCells; day++) {
+        const dayEl = createDayElement(day, false, 
+          currentBsMonth === 12 ? currentBsYear + 1 : currentBsYear,
+          currentBsMonth === 12 ? 1 : currentBsMonth + 1
+        );
+        dayEl.classList.add('other-month');
+        calendarGrid.appendChild(dayEl);
+      }
+    }
+
+    function createDayElement(day, isCurrentMonth, year, month, isToday = false) {
+      const div = document.createElement('div');
+      div.className = 'calendar-day relative p-2 aspect-square flex flex-col items-center justify-center cursor-pointer';
+      if (isToday) div.classList.add('today');
+      
+      const events = getEventsForDate(year, month, day);
+      const hasFestival = events.some(e => e.type === 'festival');
+      const hasHoliday = events.some(e => e.type === 'holiday');
+      if (hasFestival) div.classList.add('has-festival');
+      if (hasHoliday) div.classList.add('has-holiday');
+
+      div.innerHTML = `
+        <span class="text-lg font-semibold ${isToday ? 'text-white' : 'text-slate-900'}">${day}</span>
+        <span class="text-xs text-slate-400 nepali-font">${toNepaliDigits(day)}</span>
+      `;
+
+      div.addEventListener('click', () => showEvents(year, month, day, events));
+      return div;
+    }
+
+    function showEvents(year, month, day, events) {
+      selectedDate = { year, month, day };
+      const monthInfo = NEPALI_MONTHS[month - 1];
+      eventsDate.querySelector('.nepali-font').textContent = `${toNepaliDigits(day)} ${monthInfo.np}, ${toNepaliDigits(year)}`;
+      eventsDate.querySelector('.nepali-font').insertAdjacentText('afterend', `  •  ${day} ${monthInfo.en}, ${year}`);
+      
+      eventsList.innerHTML = '';
+      
+      if (events.length === 0) {
+        eventsList.innerHTML = '<p class="text-slate-400 text-center py-4">No events scheduled</p>';
+      } else {
+        events.forEach(event => {
+          const badge = document.createElement('span');
+          badge.className = `inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            event.type === 'holiday' ? 'bg-red-100 text-red-700' :
+            event.type === 'festival' ? 'bg-amber-100 text-amber-700' :
+            'bg-slate-100 text-slate-700'
+          }`;
+          badge.textContent = event.type;
+          
+          const item = document.createElement('div');
+          item.className = 'flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50';
+          item.innerHTML = `
+            <div class="flex-1">
+              <p class="font-medium text-slate-900">${event.name}</p>
+              <p class="text-sm text-slate-500 nepali-font">${event.np}</p>
+            </div>
+          `;
+          item.prepend(badge);
+          eventsList.appendChild(item);
+        });
+      }
+      
+      eventsPanel.classList.remove('hidden');
+    }
+
+    function renderUpcomingFestivals() {
+      upcomingFestivalsEl.innerHTML = '';
+      const today = new Date();
+      const todayAd = { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+      
+      // Get next 10 festivals
+      const upcoming = Object.entries(FESTIVALS)
+        .filter(([key]) => {
+          const [y, m, d] = key.split('-').map(Number);
+          if (y > 2000) { // BS date
+            const ad = approxBsToAd(y, m, d);
+            return new Date(ad.year, ad.month - 1, ad.day) >= today;
+          } else { // AD date
+            return new Date(y, m - 1, d) >= today;
+          }
+        })
+        .slice(0, 8);
+
+      upcoming.forEach(([key, events]) => {
+        events.forEach(event => {
+          const item = document.createElement('div');
+          item.className = 'flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50';
+          const isBs = parseInt(key.split('-')[0]) > 2000;
+          let dateStr = '';
+          if (isBs) {
+            const [y, m, d] = key.split('-').map(Number);
+            const monthInfo = NEPALI_MONTHS[m - 1];
+            dateStr = `${toNepaliDigits(d)} ${monthInfo.np} ${toNepaliDigits(y)}`;
+          }
+          item.innerHTML = `
+            <div class="w-2 h-2 rounded-full ${event.type === 'holiday' ? 'bg-red-500' : 'bg-amber-500'}"></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-slate-900 truncate">${event.name}</p>
+              <p class="text-xs text-slate-500 nepali-font">${event.np} • ${dateStr}</p>
+            </div>
+            <span class="text-xs px-2 py-0.5 rounded ${event.type === 'holiday' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}">
+              ${event.type}
+            </span>
+          `;
+          upcomingFestivalsEl.appendChild(item);
+        });
+      });
+    }
+
+    function renderDualDate() {
+      const today = new Date();
+      const ad = { year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() };
+      const bs = approxAdToBs(ad.year, ad.month, ad.day);
+      
+      const adMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const adWeekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const adWeekday = adWeekdays[new Date(ad.year, ad.month - 1, ad.day).getDay()];
+      
+      gregorianDateEl.textContent = `${adWeekday}, ${adMonths[ad.month - 1]} ${ad.day}, ${ad.year}`;
+      gregorianNepaliEl.textContent = `${adWeekday}, ${toNepaliDigits(ad.year)} ${adMonths[ad.month - 1]} ${toNepaliDigits(ad.day)}`;
+      
+      const bsMonthInfo = NEPALI_MONTHS[bs.month - 1];
+      const bsWeekday = adWeekday; // same day of week
+      bikramDateEl.textContent = `${bsWeekday}, ${toNepaliDigits(bs.day)} ${bsMonthInfo.np}, ${toNepaliDigits(bs.year)}`;
+      bikramEnglishEl.textContent = `${bsWeekday}, ${bsMonthInfo.en} ${bs.day}, ${bs.year}`;
+    }
+
+    function populateSelects() {
+      // AD selects (1900-2100)
+      for (let y = 1900; y <= 2100; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        if (y === new Date().getFullYear()) opt.selected = true;
+        adYear.appendChild(opt.cloneNode(true));
+      }
+      for (let m = 1; m <= 12; m++) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1];
+        if (m === new Date().getMonth() + 1) opt.selected = true;
+        adMonth.appendChild(opt.cloneNode(true));
+      }
+      for (let d = 1; d <= 31; d++) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d;
+        if (d === new Date().getDate()) opt.selected = true;
+        adDay.appendChild(opt.cloneNode(true));
+      }
+
+      // BS selects (2000-2100)
+      for (let y = 2000; y <= 2100; y++) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = `${toNepaliDigits(y)} (${y})`;
+        if (y === 2080) opt.selected = true;
+        bsYear.appendChild(opt.cloneNode(true));
+      }
+      NEPALI_MONTHS.forEach((m, i) => {
+        const opt = document.createElement('option');
+        opt.value = i + 1;
+        opt.textContent = `${m.np} (${m.en})`;
+        if (i + 1 === 9) opt.selected = true;
+        bsMonth.appendChild(opt);
+      });
+      for (let d = 1; d <= 32; d++) {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = `${toNepaliDigits(d)} (${d})`;
+        if (d === 1) opt.selected = true;
+        bsDay.appendChild(opt);
+      }
+    }
+
+    // ===== EVENT LISTENERS =====
+    prevMonthBtn.addEventListener('click', () => {
+      currentBsMonth--;
+      if (currentBsMonth < 1) { currentBsMonth = 12; currentBsYear--; }
+      renderCalendar();
+    });
+
+    nextMonthBtn.addEventListener('click', () => {
+      currentBsMonth++;
+      if (currentBsMonth > 12) { currentBsMonth = 1; currentBsYear++; }
+      renderCalendar();
+    });
+
+    closeEventsBtn.addEventListener('click', () => {
+      eventsPanel.classList.add('hidden');
+      selectedDate = null;
+    });
+
+    todayBtn.addEventListener('click', () => {
+      const today = new Date();
+      const bs = approxAdToBs(today.getFullYear(), today.getMonth() + 1, today.getDate());
+      currentBsYear = bs.year;
+      currentBsMonth = bs.month;
+      renderCalendar();
+      renderDualDate();
+    });
+
+    convertAdToBs.addEventListener('click', () => {
+      const y = parseInt(adYear.value);
+      const m = parseInt(adMonth.value);
+      const d = parseInt(adDay.value);
+      const bs = approxAdToBs(y, m, d);
+      const monthInfo = NEPALI_MONTHS[bs.month - 1];
+      bsResultText.textContent = `${toNepaliDigits(bs.day)} ${bsMonthInfo.np}, ${toNepaliDigits(bs.year)}`;
+      bsResultEnglish.textContent = `${bsMonthInfo.en} ${bs.day}, ${bs.year}`;
+      bsResult.classList.remove('hidden');
+    });
+
+    convertBsToAd.addEventListener('click', () => {
+      const y = parseInt(bsYear.value);
+      const m = parseInt(bsMonth.value);
+      const d = parseInt(bsDay.value);
+      const ad = approxBsToAd(y, m, d);
+      const adMonths = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const weekday = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][new Date(ad.year, ad.month - 1, ad.day).getDay()];
+      adResultText.textContent = `${weekday}, ${adMonths[ad.month - 1]} ${ad.day}, ${ad.year}`;
+      adResultNepali.textContent = `${weekday}, ${toNepaliDigits(ad.year)} ${adMonths[ad.month - 1]} ${toNepaliDigits(ad.day)}`;
+      adResult.classList.remove('hidden');
+    });
+
+    // Timezone selector
+    document.getElementById('timezoneSelect').addEventListener('change', (e) => {
+      console.log('Timezone changed to:', e.target.value);
+      // In real app: update all date displays
+    });
+
+    // ===== INIT =====
+    populateSelects();
+    renderCalendar();
+    renderDualDate();
+    renderUpcomingFestivals();
+  </script>
+</body>
+</html>

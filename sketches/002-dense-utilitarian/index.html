@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nepali Calendar — Dense Utilitarian</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.4; font-size: 13px; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .nepali-font { font-family: 'Noto Sans Devanagari', 'Inter', sans-serif; }
+    .cal-cell { transition: background 0.1s; cursor: pointer; }
+    .cal-cell:hover { background: #1e293b; }
+    .cal-cell.today { background: #0ea5e922; outline: 1px solid #0ea5e9; }
+    .cal-cell.other-month { opacity: 0.35; }
+    .cal-cell .fest-dot { width: 4px; height: 4px; border-radius: 50%; margin: 1px auto 0; }
+    .panel { background: #111827; border: 1px solid #1f2937; border-radius: 8px; }
+    .btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; transition: all 0.1s; border: 1px solid transparent; }
+    .btn-primary { background: #0ea5e9; color: #0f172a; }
+    .btn-primary:hover { background: #38bdf8; }
+    .btn-secondary { background: #1f2937; color: #e2e8f0; border-color: #374151; }
+    .btn-secondary:hover { background: #374151; }
+    .btn-danger { background: #7f1d1d; color: #fecaca; border-color: #991b1b; }
+    .btn-danger:hover { background: #991b1b; }
+    .btn-warning { background: #78350f; color: #fde68a; border-color: #92400e; }
+    .btn-warning:hover { background: #92400e; }
+    .input { background: #0f172a; border: 1px solid #374151; color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+    .input:focus { outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 2px #0ea5e944; }
+    .select { background: #0f172a; border: 1px solid #374151; color: #e2e8f0; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
+    .badge { display: inline-flex; align-items: center; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+    .badge-holiday { background: #7f1d1d; color: #fecaca; }
+    .badge-festival { background: #78350f; color: #fde68a; }
+    .badge-observance { background: #1e3a5f; color: #93c5fd; }
+    .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+    .splitter { background: #1f2937; border: 1px solid #374151; }
+    .splitter:hover { background: #374151; }
+    ::selection { background: #0ea5e966; }
+  </style>
+</head>
+<body class="h-screen flex flex-col">
+  <!-- Top Bar -->
+  <header class="h-10 px-3 bg-[#0b1220] border-b border-[#1f2937] flex items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <span class="text-lg">📅</span>
+      <span class="font-mono font-semibold text-sky-400">NP-CAL</span>
+      <span class="px-2 py-0.5 text-xs bg-sky-900/30 text-sky-300 rounded border border-sky-800">v0.1.0</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <select id="tzSelect" class="select w-auto" title="Timezone">
+        <option value="Asia/Kathmandu">KTM UTC+5:45</option>
+        <option value="UTC">UTC</option>
+        <option value="America/New_York">NYC UTC-5</option>
+        <option value="Europe/London">LON UTC+0</option>
+        <option value="Asia/Dubai">DXB UTC+4</option>
+        <option value="Asia/Singapore">SGP UTC+8</option>
+      </select>
+      <button id="btnToday" class="btn btn-primary" title="Go to today (T)">Today</button>
+      <button id="btnCompact" class="btn btn-secondary" title="Toggle compact mode (C)">Compact</button>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <div class="flex-1 flex overflow-hidden">
+    <!-- Left: Calendar -->
+    <section class="flex-1 min-w-0 flex flex-col p-3 overflow-hidden">
+      <!-- Month Header -->
+      <div class="flex items-center justify-between mb-2 px-1">
+        <button id="prevM" class="btn btn-secondary p-1.5 w-8 h-8" title="Prev month (←)">‹</button>
+        <div class="flex-1 text-center">
+          <div id="calTitle" class="font-mono font-semibold text-base text-sky-300"></div>
+          <div id="calTitleNp" class="text-xs text-slate-500 nepali-font"></div>
+        </div>
+        <button id="nextM" class="btn btn-secondary p-1.5 w-8 h-8" title="Next month (→)">›</button>
+      </div>
+
+      <!-- Week Header -->
+      <div class="grid grid-cols-7 text-xs font-mono font-medium text-slate-500 px-1 mb-1">
+        <div class="py-1 text-center">Su</div>
+        <div class="py-1 text-center">Mo</div>
+        <div class="py-1 text-center">Tu</div>
+        <div class="py-1 text-center">We</div>
+        <div class="py-1 text-center">Th</div>
+        <div class="py-1 text-center">Fr</div>
+        <div class="py-1 text-center nepali-font">आ</div>
+      </div>
+
+      <!-- Calendar Grid -->
+      <div id="calGrid" class="grid grid-cols-7 gap-0.5 flex-1 overflow-y-auto scrollbar-thin px-1 pb-2" role="grid">
+        <!-- cells rendered by JS -->
+      </div>
+    </section>
+
+    <!-- Vertical Splitter -->
+    <div id="vSplitter" class="splitter w-px cursor-col-resize flex items-center justify-center" title="Drag to resize">
+      <div class="w-px h-8 bg-slate-600"></div>
+    </div>
+
+    <!-- Right: Side Panel (Converter + Events + Festivals) -->
+    <aside id="sidePanel" class="w-80 min-w-[280px] max-w-[360px] flex flex-col p-3 gap-3 overflow-y-auto scrollbar-thin">
+      <!-- Dual Date Display -->
+      <div class="panel p-3 grid grid-cols-2 gap-2">
+        <div class="p-2 rounded bg-slate-900/50">
+          <div class="text-xs font-mono text-slate-400 uppercase tracking-wider">AD</div>
+          <div id="adDate" class="font-mono text-sm text-white"></div>
+          <div id="adDateNp" class="text-xs text-slate-400 nepali-font"></div>
+        </div>
+        <div class="p-2 rounded bg-amber-900/20 border border-amber-800">
+          <div class="text-xs font-mono text-amber-400 uppercase tracking-wider">BS</div>
+          <div id="bsDate" class="font-mono text-sm text-amber-300 nepali-font"></div>
+          <div id="bsDateEn" class="text-xs text-amber-500"></div>
+        </div>
+      </div>
+
+      <!-- Date Converter -->
+      <div class="panel p-3 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs text-slate-400 uppercase">Converter</span>
+          <span id="convSwap" class="btn btn-secondary p-1.5 text-xs" title="Swap directions (S)">⇄</span>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-1.5">
+          <select id="cYear" class="select col-span-1"></select>
+          <select id="cMonth" class="select col-span-1"></select>
+          <select id="cDay" class="select col-span-1"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="cConvert" class="btn btn-primary col-span-2">Convert</button>
+        </div>
+        <div id="cResult" class="hidden p-2 rounded bg-slate-900/50 text-xs space-y-1 border border-slate-700">
+          <div class="flex justify-between"><span class="text-slate-400">Input:</span><span id="cIn" class="font-mono"></span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Output:</span><span id="cOut" class="font-mono text-sky-300"></span></div>
+          <div class="flex justify-between"><span class="text-slate-400">Nepali:</span><span id="cOutNp" class="text-sky-300 nepali-font"></span></div>
+        </div>
+      </div>
+
+      <!-- Selected Date Events -->
+      <div class="panel p-3 space-y-2 flex-1 min-h-0">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs text-slate-400 uppercase">Events</span>
+          <span id="selDate" class="text-xs text-slate-500 nepali-font">—</span>
+        </div>
+        <div id="evList" class="flex-1 overflow-y-auto scrollbar-thin space-y-1">
+          <div class="text-slate-500 text-xs text-center py-4">Click a date</div>
+        </div>
+      </div>
+
+      <!-- Upcoming Festivals -->
+      <div class="panel p-3 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs text-slate-400 uppercase">Upcoming</span>
+          <span class="text-xs text-slate-500">10</span>
+        </div>
+        <div id="festList" class="max-h-40 overflow-y-auto scrollbar-thin space-y-1">
+          <!-- festivals rendered by JS -->
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Bottom Status Bar -->
+  <footer class="h-8 px-3 bg-[#0b1220] border-t border-[#1f2937] flex items-center justify-between text-xs text-slate-500">
+    <div class="flex items-center gap-4">
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-600"></span>Holiday</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-600"></span>Festival</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-600"></span>Observance</span>
+    </div>
+    <div class="flex items-center gap-4 font-mono">
+      <span id="statusCoords">BS 2080/09/01</span>
+      <span id="statusAd">AD 2024/01/15</span>
+    </div>
+  </footer>
+
+  <script>
+    // ===== DATA =====
+    const NEPALI_MONTHS = [
+      { en: 'Baishakh', np: 'बैशाख', days: 31, short: 'Bsk' },
+      { en: 'Jestha', np: 'जेठ', days: 31, short: 'Jst' },
+      { en: 'Ashadh', np: 'असार', days: 32, short: 'Asd' },
+      { en: 'Shrawan', np: 'श्रावण', days: 31, short: 'Shr' },
+      { en: 'Bhadra', np: 'भदौ', days: 31, short: 'Bhd' },
+      { en: 'Ashwin', np: 'आश्विन', days: 30, short: 'Asw' },
+      { en: 'Kartik', np: 'कार्तिक', days: 30, short: 'Ktk' },
+      { en: 'Mangsir', np: 'मंसिर', days: 30, short: 'Msg' },
+      { en: 'Poush', np: 'पुष', days: 30, short: 'Psh' },
+      { en: 'Magh', np: 'माघ', days: 30, short: 'Mgh' },
+      { en: 'Falgun', np: 'फाल्गुन', days: 30, short: 'Flg' },
+      { en: 'Chaitra', np: 'चैत्र', days: 30, short: 'Cht' }
+    ];
+
+    const AD_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const WEEKDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    const WEEKDAYS_NP = ['आ','सो','मङ','बु','बि','शु','श'];
+
+    const FESTIVALS = {
+      '2080-9-1': [{ n: 'Nepali New Year', np: 'नववर्ष', t: 'holiday' }],
+      '2080-9-15': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2080-10-1': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2080-6-1': [{ n: 'Dashain Begins', np: 'दशैं सुरु', t: 'holiday' }],
+      '2080-6-10': [{ n: 'Dashain Tika', np: 'दशैं टीका', t: 'holiday' }],
+      '2080-7-1': [{ n: 'Tihar Begins', np: 'तिहार सुरु', t: 'holiday' }],
+      '2080-7-5': [{ n: 'Bhai Tika', np: 'भाई टीका', t: 'holiday' }],
+      '2080-11-15': [{ n: 'Holi', np: 'होली', t: 'holiday' }],
+      '2080-1-15': [{ n: 'Buddha Jayanti', np: 'बुद्ध जयन्ती', t: 'holiday' }],
+      '2080-4-15': [{ n: 'Janai Purnima', np: 'जनेइ पूर्णिमा', t: 'festival' }],
+      '2080-5-3': [{ n: 'Teej', np: 'तीज', t: 'holiday' }],
+      '2081-1-1': [{ n: 'Nepali New Year', np: 'नववर्ष', t: 'holiday' }],
+      '2024-1-15': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2024-1-26': [{ n: 'Republic Day', np: 'गणतन्त्र दिवस', t: 'observance' }],
+      '2024-3-8': [{ n: "Women's Day", np: 'महिला दिवस', t: 'observance' }],
+      '2024-10-2': [{ n: 'Gandhi Jayanti', np: 'गाँधी जयन्ती', t: 'observance' }],
+    };
+
+    // ===== STATE =====
+    let bsY = 2080, bsM = 9;
+    let convDir = 'ad2bs'; // or 'bs2ad'
+    let panelWidth = 300;
+    let isDragging = false;
+
+    // ===== DOM =====
+    const calGrid = document.getElementById('calGrid');
+    const calTitle = document.getElementById('calTitle');
+    const calTitleNp = document.getElementById('calTitleNp');
+    const adDate = document.getElementById('adDate');
+    const adDateNp = document.getElementById('adDateNp');
+    const bsDate = document.getElementById('bsDate');
+    const bsDateEn = document.getElementById('bsDateEn');
+    const evList = document.getElementById('evList');
+    const selDate = document.getElementById('selDate');
+    const festList = document.getElementById('festList');
+    const statusCoords = document.getElementById('statusCoords');
+    const statusAd = document.getElementById('statusAd');
+    const cYear = document.getElementById('cYear');
+    const cMonth = document.getElementById('cMonth');
+    const cDay = document.getElementById('cDay');
+    const cConvert = document.getElementById('cConvert');
+    const cResult = document.getElementById('cResult');
+    const cIn = document.getElementById('cIn');
+    const cOut = document.getElementById('cOut');
+    const cOutNp = document.getElementById('cOutNp');
+    const convSwap = document.getElementById('convSwap');
+
+    // ===== UTILS =====
+    const nd = n => String(n).replace(/[0-9]/g, d => '०१२३४५६७८९'[d]);
+    const isBsLeap = y => [2078,2081,2084,2087,2090,2093,2096,2099].includes(y);
+    const dimBs = (y,m) => m===3 && isBsLeap(y) ? 32 : NEPALI_MONTHS[m-1].days;
+    const getEv = (y,m,d) => FESTIVALS[`${y}-${m}-${d}`] || [];
+
+    // Approximate conversions
+    function ad2bs(adY, adM, adD) {
+      const bsY = adY + 56 + (adM > 8 ? 1 : 0);
+      const bsM = ((adM + 3 - 1) % 12) + 1;
+      return { y: bsY, m: bsM, d: adD };
+    }
+    function bs2ad(bsY, bsM, bsD) {
+      const adY = bsY - 56 - (bsM > 4 ? 1 : 0);
+      const adM = ((bsM + 8 - 1) % 12) + 1;
+      return { y: adY, m: adM, d: bsD };
+    }
+
+    // ===== RENDER =====
+    function renderCal() {
+      const mi = NEPALI_MONTHS[bsM-1];
+      calTitle.textContent = `${mi.en} ${bsY}`;
+      calTitleNp.textContent = `${mi.np} ${nd(bsY)}`;
+
+      const firstAd = bs2ad(bsY, bsM, 1);
+      const firstDow = new Date(firstAd.y, firstAd.m-1, firstAd.d).getDay();
+      const daysInM = dimBs(bsY, bsM);
+
+      const today = new Date();
+      const td = { y: today.getFullYear(), m: today.getMonth()+1, d: today.getDate() };
+      const todayBs = ad2bs(td.y, td.m, td.d);
+
+      calGrid.innerHTML = '';
+
+      // Prev month days
+      const pm = bsM===1?12:bsM-1, py = bsM===1?bsY-1:bsY;
+      const pDim = dimBs(py, pm);
+      for (let i = firstDow-1; i>=0; i--) {
+        calGrid.appendChild(mkCell(pDim-i, false, py, pm));
+      }
+
+      // Current month
+      for (let d=1; d<=daysInM; d++) {
+        const isToday = todayBs.y===bsY && todayBs.m===bsM && todayBs.d===d;
+        calGrid.appendChild(mkCell(d, true, bsY, bsM, isToday));
+      }
+
+      // Next month
+      const total = firstDow + daysInM;
+      const rem = (Math.ceil(total/7)*7) - total;
+      const nm = bsM===12?1:bsM+1, ny = bsM===12?bsY+1:bsY;
+      for (let d=1; d<=rem; d++) {
+        calGrid.appendChild(mkCell(d, false, ny, nm));
+      }
+    }
+
+    function mkCell(d, cur, y, m, today=false) {
+      const div = document.createElement('div');
+      div.className = 'cal-cell p-1.5 text-center relative min-h-[48px] flex flex-col items-center justify-start';
+      if (!cur) div.classList.add('other-month');
+      if (today) div.classList.add('today');
+      const evs = getEv(y,m,d);
+      const hasFest = evs.some(e=>e.t==='festival');
+      const hasHol = evs.some(e=>e.t==='holiday');
+      div.innerHTML = `
+        <span class="font-mono text-sm ${today?'text-sky-400':'text-white'}">${d}</span>
+        <span class="text-[10px] text-slate-500 nepali-font">${nd(d)}</span>
+        ${hasFest?'<span class="fest-dot bg-amber-500"></span>':''}
+        ${hasHol?'<span class="fest-dot bg-red-500"></span>':''}
+      `;
+      div.onclick = () => showEvents(y,m,d,evs);
+      return div;
+    }
+
+    function showEvents(y,m,d,evs) {
+      const mi = NEPALI_MONTHS[m-1];
+      selDate.textContent = `${nd(d)} ${mi.np} ${nd(y)}  •  ${d} ${mi.en} ${y}`;
+      evList.innerHTML = '';
+      if (!evs.length) {
+        evList.innerHTML = '<div class="text-slate-500 text-xs text-center py-4">No events</div>';
+        return;
+      }
+      evs.forEach(e => {
+        const el = document.createElement('div');
+        el.className = 'flex items-start gap-2 p-1.5 rounded hover:bg-slate-800';
+        el.innerHTML = `<span class="badge badge-${e.t}">${e.t}</span><div><div class="text-xs font-medium">${e.n}</div><div class="text-[10px] text-slate-500 nepali-font">${e.np}</div></div>`;
+        evList.appendChild(el);
+      });
+    }
+
+    function renderDual() {
+      const today = new Date();
+      const ad = { y: today.getFullYear(), m: today.getMonth()+1, d: today.getDate() };
+      const bs = ad2bs(ad.y, ad.m, ad.d);
+      const dow = WEEKDAYS[new Date(ad.y, ad.m-1, ad.d).getDay()];
+      
+      adDate.textContent = `${dow} ${AD_MONTHS[ad.m-1]} ${ad.d}, ${ad.y}`;
+      adDateNp.textContent = `${dow} ${AD_MONTHS[ad.m-1]} ${nd(ad.d)}, ${nd(ad.y)}`;
+      
+      const bmi = NEPALI_MONTHS[bs.m-1];
+      bsDate.textContent = `${dow} ${nd(bs.d)} ${bmi.np} ${nd(bs.y)}`;
+      bsDateEn.textContent = `${dow} ${bmi.en} ${bs.d}, ${bs.y}`;
+      
+      statusCoords.textContent = `BS ${bs.y}/${String(bs.m).padStart(2,'0')}/${String(bs.d).padStart(2,'0')}`;
+      statusAd.textContent = `AD ${ad.y}/${String(ad.m).padStart(2,'0')}/${String(ad.d).padStart(2,'0')}`;
+    }
+
+    function renderFestivals() {
+      festList.innerHTML = '';
+      const today = new Date();
+      const entries = Object.entries(FESTIVALS)
+        .filter(([k]) => {
+          const [y,m,d] = k.split('-').map(Number);
+          if (y>2000) { const ad = bs2ad(y,m,d); return new Date(ad.y,ad.m-1,ad.d)>=today; }
+          return new Date(y,m-1,d)>=today;
+        })
+        .slice(0,10);
+      
+      entries.forEach(([k,evs]) => {
+        evs.forEach(e => {
+          const isBs = parseInt(k.split('-')[0])>2000;
+          let ds = '';
+          if (isBs) { const [y,m,d]=k.split('-').map(Number); ds=`${nd(d)} ${NEPALI_MONTHS[m-1].np} ${nd(y)}`; }
+          const el = document.createElement('div');
+          el.className = 'flex items-center gap-2 p-1.5 rounded hover:bg-slate-800';
+          el.innerHTML = `<span class="w-1.5 h-1.5 rounded ${e.t==='holiday'?'bg-red-500':'bg-amber-500'}"></span><div class="flex-1 min-w-0"><div class="text-xs font-medium truncate">${e.n}</div><div class="text-[10px] text-slate-500 nepali-font truncate">${e.np} • ${ds}</div></div><span class="badge badge-${e.t}">${e.t}</span>`;
+          festList.appendChild(el);
+        });
+      });
+    }
+
+    function populateConv() {
+      // Clear
+      cYear.innerHTML = cMonth.innerHTML = cDay.innerHTML = '';
+      // Years
+      const now = new Date();
+      const start = convDir==='ad2bs' ? 1900 : 2000;
+      const end = convDir==='ad2bs' ? 2100 : 2100;
+      for (let y=start; y<=end; y++) {
+        const o = document.createElement('option');
+        o.value = y;
+        o.textContent = convDir==='ad2bs' ? y : `${nd(y)} (${y})`;
+        if ((convDir==='ad2bs' && y===now.getFullYear()) || (convDir==='bs2ad' && y===2080)) o.selected=true;
+        cYear.appendChild(o);
+      }
+      // Months
+      const months = convDir==='ad2bs' ? AD_MONTHS.map((n,i)=>`${n}`) : NEPALI_MONTHS.map(m=>`${m.np}`);
+      months.forEach((n,i)=>{ const o=document.createElement('option');o.value=i+1;o.textContent=n;if(i+1===(convDir==='ad2bs'?now.getMonth()+1:9))o.selected=true;cMonth.appendChild(o); });
+      // Days
+      for (let d=1; d<=31; d++) { const o=document.createElement('option');o.value=d;o.textContent=convDir==='ad2bs'?d:`${nd(d)} (${d})`;if(d===1||d===now.getDate())o.selected=true;cDay.appendChild(o); }
+    }
+
+    function doConvert() {
+      const y = parseInt(cYear.value), m = parseInt(cMonth.value), d = parseInt(cDay.value);
+      let out, outNp, inStr;
+      if (convDir==='ad2bs') {
+        const r = ad2bs(y,m,d);
+        const mi = NEPALI_MONTHS[r.m-1];
+        out = `${mi.en} ${r.d}, ${r.y}`;
+        outNp = `${nd(r.d)} ${mi.np}, ${nd(r.y)}`;
+        inStr = `${AD_MONTHS[m-1]} ${d}, ${y}`;
+      } else {
+        const r = bs2ad(y,m,d);
+        const dow = WEEKDAYS[new Date(r.y,r.m-1,r.d).getDay()];
+        out = `${dow}, ${AD_MONTHS[r.m-1]} ${r.d}, ${r.y}`;
+        outNp = `${dow}, ${AD_MONTHS[r.m-1]} ${nd(r.d)}, ${nd(r.y)}`;
+        inStr = `${NEPALI_MONTHS[m-1].np} ${nd(d)}, ${nd(y)}`;
+      }
+      cIn.textContent = inStr;
+      cOut.textContent = out;
+      cOutNp.textContent = outNp;
+      cResult.classList.remove('hidden');
+    }
+
+    // ===== EVENTS =====
+    document.getElementById('prevM').onclick = () => { bsM--; if(bsM<1){bsM=12;bsY--;} renderCal(); };
+    document.getElementById('nextM').onclick = () => { bsM++; if(bsM>12){bsM=1;bsY++;} renderCal(); };
+    document.getElementById('btnToday').onclick = () => {
+      const t = new Date(); const b = ad2bs(t.getFullYear(), t.getMonth()+1, t.getDate());
+      bsY=b.y; bsM=b.m; renderCal(); renderDual();
+    };
+    document.getElementById('btnCompact').onclick = () => document.body.classList.toggle('compact');
+    document.getElementById('tzSelect').onchange = e => console.log('TZ:', e.target.value);
+
+    convSwap.onclick = () => {
+      convDir = convDir==='ad2bs' ? 'bs2ad' : 'ad2bs';
+      convSwap.textContent = convDir==='ad2bs' ? '⇄ AD→BS' : '⇄ BS→AD';
+      populateConv(); cResult.classList.add('hidden');
+    };
+    cConvert.onclick = doConvert;
+
+    // Splitter drag
+    const splitter = document.getElementById('vSplitter');
+    const side = document.getElementById('sidePanel');
+    splitter.onmousedown = e => { isDragging=true; document.body.style.cursor='col-resize'; e.preventDefault(); };
+    document.onmousemove = e => { if(!isDragging)return; panelWidth=Math.max(280,Math.min(400,window.innerWidth-e.clientX)); side.style.width=panelWidth+'px'; };
+    document.onmouseup = () => { isDragging=false; document.body.style.cursor=''; };
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName==='INPUT'||e.target.tagName==='SELECT') return;
+      if (e.key==='ArrowLeft') { bsM--; if(bsM<1){bsM=12;bsY--;} renderCal(); }
+      if (e.key==='ArrowRight') { bsM++; if(bsM>12){bsM=1;bsY++;} renderCal(); }
+      if (e.key==='t'||e.key==='T') document.getElementById('btnToday').click();
+      if (e.key==='c'||e.key==='C') document.getElementById('btnCompact').click();
+      if (e.key==='s'||e.key==='S') convSwap.click();
+    });
+
+    // Init
+    populateConv();
+    renderCal();
+    renderDual();
+    renderFestivals();
+  </script>
+</body>
+</html>

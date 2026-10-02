@@ -1,14 +1,14 @@
 {
-  "name": "nepaliCalendar",
+  "name": "nepali-calendar-monorepo",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Nepali Calendar (Bikram Sambat) monorepo with core library and web app",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "pnpm --filter nepali-calendar-web dev",
+    "build": "pnpm --filter @8848/nepali-calendar build && pnpm --filter nepali-calendar-web build",
+    "test": "pnpm --filter @8848/nepali-calendar test",
+    "lint": "pnpm --filter @8848/nepali-calendar lint && pnpm --filter nepali-calendar-web lint"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.33.3",
   "devDependencies": {
     "kritikka-mcp": "^0.1.4"

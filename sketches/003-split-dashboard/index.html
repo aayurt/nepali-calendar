@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nepali Calendar — Split Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: linear-gradient(135deg, #f0f4f8 0%, #e8eef4 100%); color: #1e293b; min-height: 100vh; }
+    .nepali-font { font-family: 'Noto Sans Devanagari', 'Inter', sans-serif; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
+    .cal-day { transition: all 0.15s ease; cursor: pointer; }
+    .cal-day:hover { background: #f0f9ff; transform: scale(1.02); }
+    .cal-day.today { background: linear-gradient(135deg, #0ea5e9, #38bdf8); color: white; box-shadow: 0 4px 12px rgba(14,165,233,0.3); }
+    .cal-day.other-month { opacity: 0.3; }
+    .cal-day.has-festival { position: relative; }
+    .cal-day.has-festival::after { content: ''; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 7px; height: 7px; border-radius: 50%; background: #fbbf24; box-shadow: 0 0 0 2px white; }
+    .cal-day.has-holiday::after { content: ''; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 7px; height: 7px; border-radius: 50%; background: #f87171; box-shadow: 0 0 0 2px white; }
+    .badge { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .badge-holiday { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+    .badge-festival { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+    .badge-observance { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+    .tab-btn { padding: 8px 16px; border-radius: 8px; font-weight: 500; transition: all 0.15s; }
+    .tab-btn.active { background: #0ea5e9; color: white; }
+    .tab-btn:not(.active) { color: #64748b; }
+    .tab-btn:not(.active):hover { background: #f1f5f9; color: #334155; }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .fade-in { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .slide-up { animation: slideUp 0.25s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @media (max-width: 1024px) {
+      .mobile-stack { flex-direction: column; }
+      .mobile-full { width: 100% !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Header -->
+    <header class="mb-6 fade-in">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center shadow-lg">
+            <span class="text-2xl">📅</span>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900">Nepali Calendar</h1>
+            <p class="text-slate-500 text-sm">Bikram Sambat २०८१ • विक्रम संवत</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="relative">
+            <select id="timezone" class="appearance-none px-4 py-2.5 pr-10 border border-slate-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent cursor-pointer">
+              <option value="Asia/Kathmandu">🇳🇵 Kathmandu (UTC+5:45)</option>
+              <option value="UTC">🌍 UTC</option>
+              <option value="America/New_York">🇺🇸 New York (UTC-5)</option>
+              <option value="Europe/London">🇬🇧 London (UTC+0)</option>
+              <option value="Asia/Dubai">🇦🇪 Dubai (UTC+4)</option>
+              <option value="Asia/Singapore">🇸🇬 Singapore (UTC+8)</option>
+            </select>
+            <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">▼</div>
+          </div>
+          <button id="btnToday" class="px-5 py-2.5 bg-sky-600 text-white rounded-xl font-medium hover:bg-sky-700 shadow-sm hover:shadow-md transition-all">Today</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Dashboard Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 mobile-stack">
+      <!-- Left Column: Calendar (8/12) -->
+      <section class="lg:col-span-8 space-y-6 mobile-full">
+        <!-- Month Header Card -->
+        <div class="card p-4 slide-up">
+          <div class="flex items-center justify-between">
+            <button id="prevMonth" class="w-10 h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center transition" aria-label="Previous month">
+              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="text-center flex-1">
+              <h2 id="monthTitle" class="text-xl font-semibold text-slate-900">Poush 2080</h2>
+              <p id="monthTitleNp" class="text-sm text-slate-500 nepali-font">पुष २०८०</p>
+            </div>
+            <button id="nextMonth" class="w-10 h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center transition" aria-label="Next month">
+              <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Dual Date Display Card -->
+        <div class="card p-5 slide-up" style="animation-delay: 50ms;">
+          <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 rounded-xl bg-slate-50">
+              <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Gregorian (AD)</p>
+              <p id="adDateMain" class="text-2xl font-bold text-slate-900">Monday, January 15, 2024</p>
+              <p id="adDateNpMain" class="text-sm text-slate-500 nepali-font mt-1">सोमबार, २०२४ जनवरी १५</p>
+            </div>
+            <div class="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100">
+              <p class="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">Bikram Sambat (BS)</p>
+              <p id="bsDateMain" class="text-2xl font-bold text-amber-900 nepali-font">सोमबार, २०८० पुष १</p>
+              <p id="bsDateEnMain" class="text-sm text-amber-700 mt-1">Monday, Poush 1, 2080</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calendar Grid Card -->
+        <div class="card overflow-hidden slide-up" style="animation-delay: 100ms;">
+          <!-- Week Headers -->
+          <div class="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Sun</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Mon</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Tue</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Wed</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Thu</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider">Fri</div>
+            <div class="p-3 text-center text-xs font-semibold text-slate-400 uppercase tracking-wider nepali-font">आइत</div>
+          </div>
+          
+          <!-- Days Grid -->
+          <div id="calGrid" class="grid grid-cols-7 min-h-[420px] p-2">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Events Detail Card (expandable) -->
+        <div id="eventsCard" class="card overflow-hidden slide-up hidden" style="animation-delay: 150ms;">
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 id="eventsCardTitle" class="font-semibold text-slate-900 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">📍</span>
+              Events for <span class="nepali-font"></span>
+            </h3>
+            <button id="closeEventsCard" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition text-slate-500 hover:text-slate-700">×</button>
+          </div>
+          <div id="eventsCardList" class="p-4 max-h-64 overflow-y-auto scrollbar-thin space-y-3">
+            <!-- Events rendered by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Tools & Info (4/12) -->
+      <aside class="lg:col-span-4 space-y-6 mobile-full">
+        <!-- Date Converter Card -->
+        <div class="card p-5 fade-in">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-slate-900 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600">🔄</span>
+              Date Converter
+            </h3>
+            <button id="swapConverter" class="tab-btn text-xs" title="Swap direction">⇄</button>
+          </div>
+          
+          <div id="converterAd2Bs" class="space-y-3">
+            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider">Gregorian → Bikram Sambat</label>
+            <div class="grid grid-cols-3 gap-2">
+              <select id="adY" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+              <select id="adM" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+              <select id="adD" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+            </div>
+            <button id="convertAdBtn" class="w-full py-2.5 bg-sky-600 text-white rounded-xl font-medium hover:bg-sky-700 transition">Convert to BS</button>
+            <div id="adResultCard" class="hidden p-4 rounded-xl bg-sky-50 border border-sky-100">
+              <p class="text-xs text-sky-700 font-medium mb-1">Result</p>
+              <p id="adResultBs" class="font-bold text-sky-900 nepali-font text-lg"></p>
+              <p id="adResultBsEn" class="text-sm text-sky-700"></p>
+            </div>
+          </div>
+
+          <div id="converterBs2Ad" class="hidden space-y-3 pt-4 border-t border-slate-100">
+            <label class="block text-xs font-medium text-slate-500 uppercase tracking-wider">Bikram Sambat → Gregorian</label>
+            <div class="grid grid-cols-3 gap-2">
+              <select id="bsY" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+              <select id="bsM" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+              <select id="bsD" class="px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"></select>
+            </div>
+            <button id="convertBsBtn" class="w-full py-2.5 bg-amber-600 text-white rounded-xl font-medium hover:bg-amber-700 transition">Convert to AD</button>
+            <div id="bsResultCard" class="hidden p-4 rounded-xl bg-amber-50 border border-amber-100">
+              <p class="text-xs text-amber-700 font-medium mb-1">Result</p>
+              <p id="bsResultAd" class="font-bold text-amber-900 text-lg"></p>
+              <p id="bsResultAdNp" class="text-sm text-amber-700 nepali-font"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timezone Card -->
+        <div class="card p-5 fade-in" style="animation-delay: 50ms;">
+          <h3 class="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">🌍</span>
+            Timezone
+          </h3>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🇳🇵</span>
+                <div>
+                  <p class="font-medium text-slate-900">Kathmandu</p>
+                  <p class="text-xs text-slate-500">UTC+5:45</p>
+                </div>
+              </div>
+              <span class="w-3 h-3 rounded-full bg-green-500"></span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="p-2 rounded-lg bg-slate-50"><p class="text-slate-400">New York</p><p class="font-mono text-sky-600" id="tzNy">—</p></div>
+              <div class="p-2 rounded-lg bg-slate-50"><p class="text-slate-400">London</p><p class="font-mono text-sky-600" id="tzLon">—</p></div>
+              <div class="p-2 rounded-lg bg-slate-50"><p class="text-slate-400">Dubai</p><p class="font-mono text-sky-600" id="tzDxb">—</p></div>
+              <div class="p-2 rounded-lg bg-slate-50"><p class="text-slate-400">Singapore</p><p class="font-mono text-sky-600" id="tzSgp">—</p></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upcoming Festivals Card -->
+        <div class="card p-5 fade-in" style="animation-delay: 100ms;">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-slate-900 flex items-center gap-2">
+              <span class="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center text-pink-600">🎉</span>
+              Upcoming Festivals
+            </h3>
+            <span class="text-xs text-slate-400">10 events</span>
+          </div>
+          <div id="festivalsList" class="space-y-2 max-h-72 overflow-y-auto scrollbar-thin">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Quick Stats Card -->
+        <div class="card p-5 fade-in" style="animation-delay: 150ms;">
+          <h3 class="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">📊</span>
+            Quick Stats
+          </h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-2xl font-bold text-slate-900" id="statDaysInMonth">30</p>
+              <p class="text-xs text-slate-500">Days in Month</p>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-2xl font-bold text-sky-600" id="statDaysLeft">15</p>
+              <p class="text-xs text-slate-500">Days Remaining</p>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-2xl font-bold text-amber-600" id="statFestivalsMonth">3</p>
+              <p class="text-xs text-slate-500">Festivals This Month</p>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-2xl font-bold text-green-600" id="statHolidaysMonth">1</p>
+              <p class="text-xs text-slate-500">Holidays This Month</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zodiac Card -->
+        <div class="card p-5 fade-in" style="animation-delay: 200ms;">
+          <h3 class="font-semibold text-slate-900 mb-4 flex items-center gap-2">
+            <span class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">♈</span>
+            Zodiac / Rashi
+          </h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Western</p>
+              <p id="zodiacWest" class="font-bold text-slate-900">Capricorn</p>
+              <p id="zodiacWestNp" class="text-xs text-slate-500 nepali-font">मकर</p>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-50">
+              <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Nepali</p>
+              <p id="zodiacNp" class="font-bold text-slate-900 nepali-font">मकर</p>
+              <p id="zodiacNpEn" class="text-xs text-slate-500">Makar</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // ===== DATA =====
+    const NEPALI_MONTHS = [
+      { en: 'Baishakh', np: 'बैशाख', days: 31, short: 'Bsk' },
+      { en: 'Jestha', np: 'जेठ', days: 31, short: 'Jst' },
+      { en: 'Ashadh', np: 'असार', days: 32, short: 'Asd' },
+      { en: 'Shrawan', np: 'श्रावण', days: 31, short: 'Shr' },
+      { en: 'Bhadra', np: 'भदौ', days: 31, short: 'Bhd' },
+      { en: 'Ashwin', np: 'आश्विन', days: 30, short: 'Asw' },
+      { en: 'Kartik', np: 'कार्तिक', days: 30, short: 'Ktk' },
+      { en: 'Mangsir', np: 'मंसिर', days: 30, short: 'Msg' },
+      { en: 'Poush', np: 'पुष', days: 30, short: 'Psh' },
+      { en: 'Magh', np: 'माघ', days: 30, short: 'Mgh' },
+      { en: 'Falgun', np: 'फाल्गुन', days: 30, short: 'Flg' },
+      { en: 'Chaitra', np: 'चैत्र', days: 30, short: 'Cht' }
+    ];
+
+    const AD_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const AD_MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const WEEKDAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    const WEEKDAYS_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const WEEKDAYS_NP = ['आइतबार','सोमबार','मङ्गलबार','बुधबार','बिहिबार','शुक्रबार','शनिबार'];
+    const WEEKDAYS_NP_SHORT = ['आइत','सोम','मङ्गल','बुध','बिहि','शुक्र','शनि'];
+
+    const FESTIVALS = {
+      '2080-9-1': [{ n: 'Nepali New Year', np: 'नववर्ष', t: 'holiday' }],
+      '2080-9-15': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2080-10-1': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2080-6-1': [{ n: 'Dashain Begins', np: 'दशैं सुरु', t: 'holiday' }],
+      '2080-6-10': [{ n: 'Dashain Tika', np: 'दशैं टीका', t: 'holiday' }],
+      '2080-7-1': [{ n: 'Tihar Begins', np: 'तिहार सुरु', t: 'holiday' }],
+      '2080-7-5': [{ n: 'Bhai Tika', np: 'भाई टीका', t: 'holiday' }],
+      '2080-11-15': [{ n: 'Holi', np: 'होली', t: 'holiday' }],
+      '2080-1-15': [{ n: 'Buddha Jayanti', np: 'बुद्ध जयन्ती', t: 'holiday' }],
+      '2080-4-15': [{ n: 'Janai Purnima', np: 'जनेइ पूर्णिमा', t: 'festival' }],
+      '2080-5-3': [{ n: 'Teej', np: 'तीज', t: 'holiday' }],
+      '2081-1-1': [{ n: 'Nepali New Year', np: 'नववर्ष', t: 'holiday' }],
+      '2024-1-15': [{ n: 'Maghe Sankranti', np: 'माघे सङ्क्रान्ति', t: 'festival' }],
+      '2024-1-26': [{ n: 'Republic Day', np: 'गणतन्त्र दिवस', t: 'observance' }],
+      '2024-3-8': [{ n: "Women's Day", np: 'महिला दिवस', t: 'observance' }],
+      '2024-10-2': [{ n: 'Gandhi Jayanti', np: 'गाँधी जयन्ती', t: 'observance' }],
+    };
+
+    const ZODIAC_WEST = [
+      { sign: 'Capricorn', np: 'मकर', start: { m: 1, d: 20 }, end: { m: 2, d: 18 } },
+      { sign: 'Aquarius', np: 'कुम्भ', start: { m: 2, d: 19 }, end: { m: 3, d: 20 } },
+      { sign: 'Pisces', np: 'मीन', start: { m: 3, d: 21 }, end: { m: 4, d: 19 } },
+      { sign: 'Aries', np: 'मेष', start: { m: 4, d: 20 }, end: { m: 5, d: 20 } },
+      { sign: 'Taurus', np: 'वृष', start: { m: 5, d: 21 }, end: { m: 6, d: 20 } },
+      { sign: 'Gemini', np: 'मिथुन', start: { m: 6, d: 21 }, end: { m: 7, d: 22 } },
+      { sign: 'Cancer', np: 'कर्कट', start: { m: 7, d: 23 }, end: { m: 8, d: 22 } },
+      { sign: 'Leo', np: 'सिंह', start: { m: 8, d: 23 }, end: { m: 9, d: 22 } },
+      { sign: 'Virgo', np: 'कन्या', start: { m: 9, d: 23 }, end: { m: 10, d: 22 } },
+      { sign: 'Libra', np: 'तुला', start: { m: 10, d: 23 }, end: { m: 11, d: 21 } },
+      { sign: 'Scorpio', np: 'वृश्चिक', start: { m: 11, d: 22 }, end: { m: 12, d: 21 } },
+      { sign: 'Sagittarius', np: 'धनु', start: { m: 12, d: 22 }, end: { m: 1, d: 19 } }
+    ];
+
+    const RASHI_NP = [
+      { rashi: 'Mesha', np: 'मेष', startM: 1, startD: 14 },
+      { rashi: 'Brisha', np: 'वृष', startM: 2, startD: 15 },
+      { rashi: 'Mithuna', np: 'मिथुन', startM: 3, startD: 15 },
+      { rashi: 'Karkat', np: 'कर्कट', startM: 4, startD: 16 },
+      { rashi: 'Simha', np: 'सिंह', startM: 5, startD: 16 },
+      { rashi: 'Kanya', np: 'कन्या', startM: 6, startD: 17 },
+      { rashi: 'Tula', np: 'तुला', startM: 7, startD: 17 },
+      { rashi: 'Brishchik', np: 'वृश्चिक', startM: 8, startD: 16 },
+      { rashi: 'Dhanu', np: 'धनु', startM: 9, startD: 15 },
+      { rashi: 'Makar', np: 'मकर', startM: 10, startD: 14 },
+      { rashi: 'Kumbha', np: 'कुम्भ', startM: 11, startD: 13 },
+      { rashi: 'Meena', np: 'मीन', startM: 12, startD: 13 }
+    ];
+
+    // ===== STATE =====
+    let bsY = 2080, bsM = 9;
+    let convMode = 'ad2bs';
+
+    // ===== DOM =====
+    const calGrid = document.getElementById('calGrid');
+    const monthTitle = document.getElementById('monthTitle');
+    const monthTitleNp = document.getElementById('monthTitleNp');
+    const adDateMain = document.getElementById('adDateMain');
+    const adDateNpMain = document.getElementById('adDateNpMain');
+    const bsDateMain = document.getElementById('bsDateMain');
+    const bsDateEnMain = document.getElementById('bsDateEnMain');
+    const eventsCard = document.getElementById('eventsCard');
+    const eventsCardTitle = document.getElementById('eventsCardTitle');
+    const eventsCardList = document.getElementById('eventsCardList');
+    const festivalsList = document.getElementById('festivalsList');
+    const statDaysInMonth = document.getElementById('statDaysInMonth');
+    const statDaysLeft = document.getElementById('statDaysLeft');
+    const statFestivalsMonth = document.getElementById('statFestivalsMonth');
+    const statHolidaysMonth = document.getElementById('statHolidaysMonth');
+    const zodiacWest = document.getElementById('zodiacWest');
+    const zodiacWestNp = document.getElementById('zodiacWestNp');
+    const zodiacNp = document.getElementById('zodiacNp');
+    const zodiacNpEn = document.getElementById('zodiacNpEn');
+
+    // Converter DOM
+    const converterAd2Bs = document.getElementById('converterAd2Bs');
+    const converterBs2Ad = document.getElementById('converterBs2Ad');
+    const swapConverter = document.getElementById('swapConverter');
+    const adY = document.getElementById('adY');
+    const adM = document.getElementById('adM');
+    const adD = document.getElementById('adD');
+    const bsYSel = document.getElementById('bsY');
+    const bsMSel = document.getElementById('bsM');
+    const bsDSel = document.getElementById('bsD');
+    const convertAdBtn = document.getElementById('convertAdBtn');
+    const convertBsBtn = document.getElementById('convertBsBtn');
+    const adResultCard = document.getElementById('adResultCard');
+    const adResultBs = document.getElementById('adResultBs');
+    const adResultBsEn = document.getElementById('adResultBsEn');
+    const bsResultCard = document.getElementById('bsResultCard');
+    const bsResultAd = document.getElementById('bsResultAd');
+    const bsResultAdNp = document.getElementById('bsResultAdNp');
+
+    // ===== UTILS =====
+    const nd = n => String(n).replace(/[0-9]/g, d => '०१२३४५६७८९'[d]);
+    const isBsLeap = y => [2078,2081,2084,2087,2090,2093,2096,2099].includes(y);
+    const dimBs = (y,m) => m===3 && isBsLeap(y) ? 32 : NEPALI_MONTHS[m-1].days;
+    const getEv = (y,m,d) => FESTIVALS[`${y}-${m}-${d}`] || [];
+    const getAdEv = (y,m,d) => FESTIVALS[`${y}-${m}-${d}`] || [];
+
+    function ad2bs(adY, adM, adD) {
+      const bsY = adY + 56 + (adM > 8 ? 1 : 0);
+      const bsM = ((adM + 3 - 1) % 12) + 1;
+      return { y: bsY, m: bsM, d: adD };
+    }
+    function bs2ad(bsY, bsM, bsD) {
+      const adY = bsY - 56 - (bsM > 4 ? 1 : 0);
+      const adM = ((bsM + 8 - 1) % 12) + 1;
+      return { y: adY, m: adM, d: bsD };
+    }
+
+    function getZodiacWest(m, d) {
+      for (const z of ZODIAC_WEST) {
+        if (z.start.m <= z.end.m) {
+          if ((m > z.start.m || (m === z.start.m && d >= z.start.d)) && (m < z.end.m || (m === z.end.m && d <= z.end.d))) return z;
+        } else {
+          if ((m > z.start.m || (m === z.start.m && d >= z.start.d)) || (m < z.end.m || (m === z.end.m && d <= z.end.d))) return z;
+        }
+      }
+      return ZODIAC_WEST[0];
+    }
+
+    function getRashiNp(bsM, bsD) {
+      for (let i = RASHI_NP.length - 1; i >= 0; i--) {
+        const r = RASHI_NP[i];
+        if (bsM > r.startM || (bsM === r.startM && bsD >= r.startD)) return r;
+      }
+      return RASHI_NP[11];
+    }
+
+    // ===== RENDER =====
+    function renderCal() {
+      const mi = NEPALI_MONTHS[bsM-1];
+      monthTitle.textContent = `${mi.en} ${bsY}`;
+      monthTitleNp.textContent = `${mi.np} ${nd(bsY)}`;
+
+      const firstAd = bs2ad(bsY, bsM, 1);
+      const firstDow = new Date(firstAd.y, firstAd.m-1, firstAd.d).getDay();
+      const daysInM = dimBs(bsY, bsM);
+
+      const today = new Date();
+      const td = { y: today.getFullYear(), m: today.getMonth()+1, d: today.getDate() };
+      const todayBs = ad2bs(td.y, td.m, td.d);
+
+      calGrid.innerHTML = '';
+
+      // Prev month
+      const pm = bsM===1?12:bsM-1, py = bsM===1?bsY-1:bsY;
+      const pDim = dimBs(py, pm);
+      for (let i = firstDow-1; i>=0; i--) {
+        calGrid.appendChild(mkCell(pDim-i, false, py, pm));
+      }
+
+      // Current month
+      for (let d=1; d<=daysInM; d++) {
+        const isToday = todayBs.y===bsY && todayBs.m===bsM && todayBs.d===d;
+        calGrid.appendChild(mkCell(d, true, bsY, bsM, isToday));
+      }
+
+      // Next month
+      const total = firstDow + daysInM;
+      const rem = (Math.ceil(total/7)*7) - total;
+      const nm = bsM===12?1:bsM+1, ny = bsM===12?bsY+1:bsY;
+      for (let d=1; d<=rem; d++) {
+        calGrid.appendChild(mkCell(d, false, ny, nm));
+      }
+
+      // Stats
+      statDaysInMonth.textContent = daysInM;
+      statDaysLeft.textContent = daysInM - todayBs.d;
+      let festCount = 0, holCount = 0;
+      for (let d=1; d<=daysInM; d++) {
+        const evs = getEv(bsY, bsM, d);
+        if (evs.some(e=>e.t==='festival')) festCount++;
+        if (evs.some(e=>e.t==='holiday')) holCount++;
+      }
+      statFestivalsMonth.textContent = festCount;
+      statHolidaysMonth.textContent = holCount;
+    }
+
+    function mkCell(d, cur, y, m, today=false) {
+      const div = document.createElement('div');
+      div.className = 'cal-day aspect-square rounded-xl flex flex-col items-center justify-center relative';
+      if (!cur) div.classList.add('other-month');
+      if (today) div.classList.add('today');
+      const evs = getEv(y,m,d);
+      const hasFest = evs.some(e=>e.t==='festival');
+      const hasHol = evs.some(e=>e.t==='holiday');
+      if (hasFest) div.classList.add('has-festival');
+      if (hasHol) div.classList.add('has-holiday');
+
+      div.innerHTML = `
+        <span class="font-semibold text-lg ${today?'text-white':'text-slate-900'}">${d}</span>
+        <span class="text-xs text-slate-400 nepali-font">${nd(d)}</span>
+      `;
+      div.onclick = () => showEventsCard(y,m,d,evs);
+      return div;
+    }
+
+    function showEventsCard(y,m,d,evs) {
+      const mi = NEPALI_MONTHS[m-1];
+      eventsCardTitle.querySelector('.nepali-font').textContent = `${nd(d)} ${mi.np} ${nd(y)}`;
+      eventsCardTitle.querySelector('.nepali-font').insertAdjacentText('afterend', `  •  ${d} ${mi.en} ${y}`);
+      eventsCardList.innerHTML = '';
+      if (!evs.length) {
+        eventsCardList.innerHTML = '<p class="text-slate-400 text-center py-4">No events scheduled</p>';
+      } else {
+        evs.forEach(e => {
+          const el = document.createElement('div');
+          el.className = 'flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50';
+          el.innerHTML = `<span class="badge badge-${e.t}">${e.t}</span><div class="flex-1"><p class="font-medium text-slate-900">${e.n}</p><p class="text-sm text-slate-500 nepali-font">${e.np}</p></div>`;
+          eventsCardList.appendChild(el);
+        });
+      }
+      eventsCard.classList.remove('hidden');
+    }
+
+    function renderDual() {
+      const today = new Date();
+      const ad = { y: today.getFullYear(), m: today.getMonth()+1, d: today.getDate() };
+      const bs = ad2bs(ad.y, ad.m, ad.d);
+      const dow = WEEKDAYS[new Date(ad.y, ad.m-1, ad.d).getDay()];
+      const dowNp = WEEKDAYS_NP[new Date(ad.y, ad.m-1, ad.d).getDay()];
+      
+      adDateMain.textContent = `${dow}, ${AD_MONTHS[ad.m-1]} ${ad.d}, ${ad.y}`;
+      adDateNpMain.textContent = `${dowNp}, ${AD_MONTHS[ad.m-1]} ${nd(ad.d)}, ${nd(ad.y)}`;
+      
+      const bmi = NEPALI_MONTHS[bs.m-1];
+      bsDateMain.textContent = `${dowNp}, ${nd(bs.d)} ${bmi.np} ${nd(bs.y)}`;
+      bsDateEnMain.textContent = `${dow}, ${bmi.en} ${bs.d}, ${bs.y}`;
+    }
+
+    function renderFestivals() {
+      festivalsList.innerHTML = '';
+      const today = new Date();
+      const entries = Object.entries(FESTIVALS)
+        .filter(([k]) => {
+          const [y,m,d] = k.split('-').map(Number);
+          if (y>2000) { const ad = bs2ad(y,m,d); return new Date(ad.y,ad.m-1,ad.d)>=today; }
+          return new Date(y,m-1,d)>=today;
+        })
+        .slice(0,10);
+      
+      entries.forEach(([k,evs]) => {
+        evs.forEach(e => {
+          const isBs = parseInt(k.split('-')[0])>2000;
+          let ds = '';
+          if (isBs) { const [y,m,d]=k.split('-').map(Number); ds=`${nd(d)} ${NEPALI_MONTHS[m-1].np} ${nd(y)}`; }
+          const el = document.createElement('div');
+          el.className = 'flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50';
+          el.innerHTML = `<span class="w-2 h-2 rounded-full mt-1.5 ${e.t==='holiday'?'bg-red-500':'bg-amber-500'}"></span><div class="flex-1 min-w-0"><p class="font-medium text-slate-900">${e.n}</p><p class="text-sm text-slate-500 nepali-font">${e.np} • ${ds}</p></div><span class="badge badge-${e.t}">${e.t}</span>`;
+          festivalsList.appendChild(el);
+        });
+      });
+    }
+
+    function populateConverter() {
+      adY.innerHTML = adM.innerHTML = adD.innerHTML = '';
+      bsYSel.innerHTML = bsMSel.innerHTML = bsDSel.innerHTML = '';
+      
+      const now = new Date();
+      // AD Years
+      for (let y=1900; y<=2100; y++) {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        if (y === now.getFullYear()) o.selected = true;
+        adY.appendChild(o);
+      }
+      // AD Months
+      AD_MONTHS_SHORT.forEach((n,i)=>{ const o=document.createElement('option');o.value=i+1;o.textContent=n;if(i+1===now.getMonth()+1)o.selected=true;adM.appendChild(o); });
+      // AD Days
+      for (let d=1; d<=31; d++) { const o=document.createElement('option');o.value=d;o.textContent=d;if(d===now.getDate())o.selected=true;adD.appendChild(o); }
+
+      // BS Years
+      for (let y=2000; y<=2100; y++) { const o=document.createElement('option');o.value=y;o.textContent=`${nd(y)} (${y})`;if(y===2080)o.selected=true;bsYSel.appendChild(o); }
+      // BS Months
+      NEPALI_MONTHS.forEach((m,i)=>{ const o=document.createElement('option');o.value=i+1;o.textContent=`${m.np} (${m.en})`;if(i+1===9)o.selected=true;bsMSel.appendChild(o); });
+      // BS Days
+      for (let d=1; d<=32; d++) { const o=document.createElement('option');o.value=d;o.textContent=`${nd(d)} (${d})`;if(d===1)o.selected=true;bsDSel.appendChild(o); }
+    }
+
+    function updateZodiac() {
+      const today = new Date();
+      const ad = { m: today.getMonth()+1, d: today.getDate() };
+      const bs = ad2bs(today.getFullYear(), ad.m, ad.d);
+      
+      const zw = getZodiacWest(ad.m, ad.d);
+      zodiacWest.textContent = zw.sign;
+      zodiacWestNp.textContent = zw.np;
+      
+      const rn = getRashiNp(bs.m, bs.d);
+      zodiacNp.textContent = rn.np;
+      zodiacNpEn.textContent = rn.rashi;
+    }
+
+    function updateTimezones() {
+      const now = new Date();
+      const fmt = (tz) => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: true }).format(now);
+      document.getElementById('tzNy').textContent = fmt('America/New_York');
+      document.getElementById('tzLon').textContent = fmt('Europe/London');
+      document.getElementById('tzDxb').textContent = fmt('Asia/Dubai');
+      document.getElementById('tzSgp').textContent = fmt('Asia/Singapore');
+    }
+
+    // ===== EVENTS =====
+    document.getElementById('prevMonth').onclick = () => { bsM--; if(bsM<1){bsM=12;bsY--;} renderCal(); renderDual(); };
+    document.getElementById('nextMonth').onclick = () => { bsM++; if(bsM>12){bsM=1;bsY++;} renderCal(); renderDual(); };
+    document.getElementById('btnToday').onclick = () => {
+      const t = new Date(); const b = ad2bs(t.getFullYear(), t.getMonth()+1, t.getDate());
+      bsY=b.y; bsM=b.m; renderCal(); renderDual(); updateStats();
+    };
+    document.getElementById('closeEventsCard').onclick = () => eventsCard.classList.add('hidden');
+    document.getElementById('timezone').onchange = e => { updateTimezones(); renderDual(); };
+
+    swapConverter.onclick = () => {
+      convMode = convMode==='ad2bs' ? 'bs2ad' : 'ad2bs';
+      converterAd2Bs.classList.toggle('hidden');
+      converterBs2Ad.classList.toggle('hidden');
+      swapConverter.textContent = convMode==='ad2bs' ? '⇄' : '⇄';
+      adResultCard.classList.add('hidden');
+      bsResultCard.classList.add('hidden');
+    };
+
+    convertAdBtn.onclick = () => {
+      const y = parseInt(adY.value), m = parseInt(adM.value), d = parseInt(adD.value);
+      const r = ad2bs(y,m,d);
+      const mi = NEPALI_MONTHS[r.m-1];
+      adResultBs.textContent = `${nd(r.d)} ${mi.np}, ${nd(r.y)}`;
+      adResultBsEn.textContent = `${mi.en} ${r.d}, ${r.y}`;
+      adResultCard.classList.remove('hidden');
+    };
+
+    convertBsBtn.onclick = () => {
+      const y = parseInt(bsYSel.value), m = parseInt(bsMSel.value), d = parseInt(bsDSel.value);
+      const r = bs2ad(y,m,d);
+      const dow = WEEKDAYS[new Date(r.y, r.m-1, r.d).getDay()];
+      bsResultAd.textContent = `${dow}, ${AD_MONTHS[r.m-1]} ${r.d}, ${r.y}`;
+      bsResultAdNp.textContent = `${WEEKDAYS_NP[new Date(r.y, r.m-1, r.d).getDay()]}, ${AD_MONTHS[r.m-1]} ${nd(r.d)}, ${nd(r.y)}`;
+      bsResultCard.classList.remove('hidden');
+    };
+
+    // Init
+    populateConverter();
+    renderCal();
+    renderDual();
+    renderFestivals();
+    updateZodiac();
+    updateTimezones();
+    setInterval(updateTimezones, 60000);
+  </script>
+</body>
+</html>
