@@ -38,3 +38,5 @@ coverage/
 .env
 .env.local
 .env.*.local
+
+apps/web/.next
